@@ -1,0 +1,103 @@
+Require Import Coq.Lists.List.
+Require Import Coq.Sorting.Sorted.
+Require Import Coq.Strings.Ascii.
+Require Import Coq.Strings.String.
+Require Import Coq.NArith.NArith.
+Require Import Coq.Init.Nat.
+Require Import Coq.Bool.Bool.
+
+Import ListNotations.
+
+Require Import Input.
+
+Local Open Scope string_scope.
+
+Inductive SeatTraverse : Type :=
+| Forward
+| Backward
+| Left
+| Right
+| Unknown.
+
+Definition BoardingPass := list SeatTraverse.
+
+Fixpoint seat_tree_of_string (r : BoardingPass) 
+(s : string) : BoardingPass :=
+match s with
+| EmptyString => r
+| String a s' => seat_tree_of_string (List.app r [match a with
+  | "F"%char => Forward
+  | "B"%char => Backward
+  | "L"%char => Left
+  | "R"%char => Right
+  | _ => Unknown
+  end]) s'
+end.
+
+Definition seat_instructions := map (seat_tree_of_string []) puzzle_input.
+Compute seat_instructions.
+
+Fixpoint n_of_boardingpass
+(row : list nat)
+(col : list nat)
+(b : BoardingPass)
+: (nat * nat)
+:=
+match b with
+| nil => (nth 0 row 0, nth 0 col 0)
+| cons e b' =>
+  match e with
+  | Forward => n_of_boardingpass (firstn (Nat.div (List.length row) 2) row) col b'
+  | Backward => n_of_boardingpass (skipn (Nat.div (List.length row) 2) row) col b'
+  | Left => n_of_boardingpass row (firstn (Nat.div (List.length col) 2) col) b'
+  | Right => n_of_boardingpass row (skipn (Nat.div (List.length col) 2) col) b'
+  | Unknown => (0, 0)
+  end
+end.
+
+(* BBFFBBFRLL *)
+Compute n_of_boardingpass (seq 0 128) (seq 0 9)
+[Backward; Backward; Forward; Forward; Backward; Backward; Forward; Right; Left; Left] = (102, 4).
+
+Definition seat_id (row : nat) (col : nat) : nat :=
+(row * 8) + col.
+
+Definition seat_ids :=
+map (fun p => match p with | (r,c) => seat_id r c end)
+(map (n_of_boardingpass (seq 0 128) (seq 0 9)) seat_instructions).
+
+(* Part 1 *)
+Compute fold_left (fun r e => if ltb r e then e else r) seat_ids 0.
+
+(* Part 2 *)
+
+(* Implement a sort. *)
+
+Fixpoint _bubble_sort (list_length : nat) (unsorted  : list nat) (result : list nat) : list nat
+:= match list_length with
+| 0 => result
+| S n =>
+  let max := fold_left (fun r e => if Nat.ltb r e then e else r) unsorted 0 in
+  match (partition (fun e => Nat.ltb e max) unsorted) with
+  | (unsorted', sorted) => _bubble_sort n unsorted' (List.app sorted result)
+  end
+end.
+
+Definition bubble_sort (l : list nat) : list nat :=
+_bubble_sort (List.length l) l nil.
+
+(* Sort the numbers *)
+
+Definition sorted_seats := bubble_sort seat_ids.
+Compute sorted_seats.
+
+(* Find two numbers +-1 from each other *)
+
+Definition find_seat (l : list nat) : nat :=
+snd (fold_left (fun r e => match r with
+  | (false, result) => if Nat.eqb (Nat.sub e result) 2 then (true, result + 1) else (false, e)
+  | (true, _) => r
+end) l (false, 0)).
+
+Compute find_seat sorted_seats.
+

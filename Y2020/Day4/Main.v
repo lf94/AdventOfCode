@@ -75,10 +75,10 @@ let rn := match c with
     end)) chars (fst r, pos)
   | (REOr, chars) => fold_left (fun r char => (match r with
     | (true, rp) => (true, rp)
-    | (false, rp) => (match (index rp char s) with
+    | (false, rp) => (match (index pos char s) with
       | None => (false, pos)
-      | Some n => if Nat.eqb n rp
-        then (true, n + 1)
+      | Some n => if Nat.eqb n pos
+        then (true, pos + 1)
         else (false, pos)
       end)
     end)) chars (false, pos)
@@ -96,9 +96,7 @@ Definition re_af :=
 
 Definition regex (l : list (RegexCommand * list string))
 (s : string) : bool :=
-fst (_regex l s 1 (true, 0)).
-
-Compute split "c" "100in".
+fst (_regex l s 0 (true, 0)).
 
 Definition _parse_hgt (s : string) : option Measurement :=
 match (orb
@@ -185,13 +183,14 @@ end.
 
 Definition validate_hcl (s : string) : bool :=
 andb
-(ltb (String.length s) 8)
+(Nat.eqb (String.length s) 7)
 (regex (
   [(REAnd, ["#"])] ++
   (repeat (REOr, List.concat [re_digits; re_af]) 6)) s).
 
 Definition validate_ecl (s : string) : bool :=
-andb (ltb (String.length s) 4)
+andb
+(Nat.eqb (String.length s) 3)
 (match find (fun c => String.eqb c s)
 ["amb"; "blu"; "brn"; "gry"; "grn"; "hzl"; "oth"]
 with
@@ -200,12 +199,13 @@ with
 end).
 
 Definition validate_pid (s : string) : bool :=
+andb
+(Nat.eqb 9 (String.length s))
 (regex (repeat (REOr, re_digits) 9) s).
 
-Compute validate_pid "334567893".
-
-Definition passport_validate (p : Passport) : list bool :=
-match p with
+Definition passport_validate (p : Passport) : bool :=
+fold_left (fun r e => andb r e)
+(match p with
 | mkPassport
   (Some byr) (Some iyr) (Some eyr) (Some hgt)
   (Some hcl) (Some ecl) (Some pid) _ => [
@@ -218,26 +218,12 @@ match p with
     validate_pid pid;
     true
   ]
-| mkPassport _ _ _ _ _ _ _ _ => []
-end.
-
+| mkPassport _ _ _ _ _ _ _ _ => [false]
+end) true.
 
 (* Counting *)
 
-
 Definition passports := parse puzzle_input.
-
-Compute passport_validate ( {|
-       byr := Some 1932%N;
-       iyr := Some 2017%N;
-       eyr := Some 2024%N;
-       hgt := Some (cm 184);
-       hcl := Some "#efcc98";
-       ecl := Some "hzl";
-       pid := Some "284313291";
-       cid := None |}).
-
-Compute parse puzzle_input.
 
 Definition how_many_passports_valid (p : list Passport) : nat :=
 fold_right (fun p r => match passport_validate p with
